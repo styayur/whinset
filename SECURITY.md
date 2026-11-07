@@ -2,7 +2,7 @@
 
 ## Supported version
 
-Security fixes target the current `main` branch. The latest public prerelease is expected to be `v2.0.0-rc.1` until final v2 certification.
+Security fixes target the current `main` branch. The latest public prerelease is `v2.0.0-rc.2`; final v2 certification remains pending. Historical RC.1 assets remain immutable.
 
 ## Report privately
 
