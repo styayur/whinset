@@ -19,7 +19,7 @@ $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $stage = Join-Path ([IO.Path]::GetTempPath()) ('Whinset-stage-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 try {
-    foreach ($file in @('whinset.ps1','whinset.cmd','README.md','LICENSE','CONTRIBUTING.md','SECURITY.md','index.html','.nojekyll')) {
+    foreach ($file in @('whinset.ps1','whinset.cmd','whinset.sh','whinset.nu','README.md','LICENSE','CONTRIBUTING.md','SECURITY.md','index.html','.nojekyll')) {
         $source = Join-Path $root $file
         if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $stage $file) -Force }
     }
@@ -27,7 +27,7 @@ try {
         $source = Join-Path $root $directory
         if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $stage $directory) -Recurse -Force }
     }
-    $textExtensions = @('.ps1','.psm1','.psd1','.py','.json','.md','.yml','.yaml','.html','.svg','.toml','.txt','.cmd')
+    $textExtensions = @('.ps1','.psm1','.psd1','.py','.json','.md','.yml','.yaml','.html','.svg','.toml','.txt','.cmd','.sh','.nu')
     foreach ($file in @(Get-ChildItem -LiteralPath $stage -File -Recurse)) {
         $extension = $file.Extension.ToLowerInvariant()
         $isNamedText = $file.Name -in @('LICENSE','.gitignore')
@@ -61,12 +61,32 @@ try {
     if ($VerifyBootstrap -and -not $integrity.Ok) { throw "Bootstrap verification failed: $($integrity.Error)" }
     if ($integrity.Ok -and $integrity.Manifest.Version -ne $Version) { throw "beatwin.txt pins $($integrity.Manifest.Version), not $Version." }
     $bootstrapHash = $null
-    if (Test-Path -LiteralPath $bootstrapPath) { $bootstrapHash = (Get-FileHash -LiteralPath $bootstrapPath -Algorithm SHA256).Hash.ToLowerInvariant() }
+    $bootstrapOutput = $null
+    if (Test-Path -LiteralPath $bootstrapPath) {
+        $bootstrapOutput = Join-Path $OutputDirectory 'beatwin.txt'
+        $text = [IO.File]::ReadAllText($bootstrapPath).Replace("`r`n","`n").Replace("`r","`n")
+        Write-WhinsetTextFile -Path $bootstrapOutput -Text $text
+        $bootstrapHash = Get-WhinsetHashFile $bootstrapOutput
+    }
     $sumsPath = Join-Path $OutputDirectory 'SHA256SUMS.txt'
     $lines = @("$archiveHash  $archiveName")
     if ($bootstrapHash) { $lines += "$bootstrapHash  beatwin.txt" }
-    Write-WhinsetTextFile -Path $sumsPath -Text (($lines -join [Environment]::NewLine) + [Environment]::NewLine)
-    return [pscustomobject][ordered]@{ Version=$Version; ArchivePath=$archivePath; ArchiveSha256=$archiveHash; BootstrapPath=$(if (Test-Path -LiteralPath $bootstrapPath) { $bootstrapPath } else { $null }); BootstrapSha256=$bootstrapHash; SumsPath=$sumsPath; BootstrapIntegrity=$integrity }
+    $acceptancePath = $null
+    $acceptanceSource = Join-Path $root "docs/acceptance/windows-$Version.json"
+    if (Test-Path -LiteralPath $acceptanceSource) {
+        $matrix = Read-WhinsetJsonFile -Path $acceptanceSource
+        if ($matrix.Release -ne $Version -or $matrix.StableEligible -ne $false) { throw 'Acceptance matrix release policy is invalid.' }
+        foreach ($entry in $matrix.Checks) {
+            if ($entry.Status -notin @('PASS','FAIL','NOT RUN','BLOCKED','NOT APPLICABLE')) { throw "Invalid acceptance status: $($entry.Id)" }
+            if ($entry.Status -eq 'PASS' -and -not $entry.Evidence) { throw "PASS requires evidence: $($entry.Id)" }
+        }
+        $acceptancePath = Join-Path $OutputDirectory 'acceptance-matrix.json'
+        $text = [IO.File]::ReadAllText($acceptanceSource).Replace("`r`n","`n").Replace("`r","`n")
+        Write-WhinsetTextFile -Path $acceptancePath -Text $text
+        $lines += "$(Get-WhinsetHashFile $acceptancePath)  acceptance-matrix.json"
+    }
+    Write-WhinsetTextFile -Path $sumsPath -Text (($lines -join "`n") + "`n")
+    return [pscustomobject][ordered]@{ Version=$Version; ArchivePath=$archivePath; ArchiveSha256=$archiveHash; BootstrapPath=$bootstrapOutput; BootstrapSha256=$bootstrapHash; SumsPath=$sumsPath; AcceptancePath=$acceptancePath; BootstrapIntegrity=$integrity }
 } finally {
     if (Test-Path -LiteralPath $stage) {
         $resolvedStage = [IO.Path]::GetFullPath($stage)
