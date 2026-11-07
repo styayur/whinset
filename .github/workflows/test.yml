@@ -79,6 +79,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      - name: Restore immutable RC.2 payload policy for bootstrap verification
+        shell: pwsh
+        run: Copy-Item ./release-staging/v2.0.0-rc.2/SECURITY.md ./SECURITY.md -Force
       - name: Build twice and verify SHA-256 manifest
         shell: pwsh
         run: |
