@@ -48,4 +48,6 @@ Do not add hidden UAC bypasses, credential collection, encoded payloads, unpinne
 
 ## Pull requests
 
+GitHub runs the existing Windows and CodeForge checks. External pull requests are not auto-merged. Owner changes and eligible Dependabot patch or minor updates can auto-merge only after the required checks pass. Workflow and signing changes are not auto-merged. No model review is required.
+
 Describe compatibility effects on exit codes, state layout, schema, package IDs and legacy entrypoints. Link real acceptance evidence separately from mocked test results.
